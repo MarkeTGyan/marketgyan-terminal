@@ -703,6 +703,7 @@ with m5:
 # =========================================================
 left,right = st.columns([1.2,1])
 
+
 # =========================================================
 # WATCHLIST
 # =========================================================
@@ -715,46 +716,48 @@ with left:
     </div>
     """, unsafe_allow_html=True)
 
-    a1,a2 = st.columns([4,1])
+    # =====================================================
+    # ADD STOCK
+    # =====================================================
+    a1, a2 = st.columns([4,1])
 
-with a1:
+    with a1:
 
-    stock_input = st.text_input(
-        "",
-        placeholder="Add NSE Stock..."
-    )
+        stock_input = st.text_input(
+            "",
+            placeholder="Add NSE Stock..."
+        )
 
-with a2:
+    with a2:
 
-    if st.button("ADD"):
+        if st.button("ADD"):
 
-        if stock_input:
+            if stock_input.strip() != "":
 
-            sym = make_symbol(stock_input)
+                sym = make_symbol(stock_input)
 
-            if sym not in st.session_state.watchlist:
+                if sym not in st.session_state.watchlist:
 
-                st.session_state.watchlist.append(sym)
+                    st.session_state.watchlist.append(sym)
 
-                save_user_data(st.session_state.username)
+                    try:
+                        save_user_data(st.session_state.username)
+                    except:
+                        pass
 
-                st.rerun()
-        sym = make_symbol(stock_input)
+                    st.success(f"{clean_symbol(sym)} ADDED")
 
-        if sym not in st.session_state.watchlist:
+                    st.rerun()
 
-            st.session_state.watchlist.append(sym)
+                else:
 
-            try:
-                save_user_data(st.session_state.username)
-            except:
-                pass
+                    st.warning("STOCK ALREADY EXISTS")
 
-            st.success(f"{clean_symbol(sym)} ADDED")
-
-            st.rerun()
     st.markdown("---")
 
+    # =====================================================
+    # WATCHLIST ITEMS
+    # =====================================================
     for stock in st.session_state.watchlist.copy():
 
         data = get_stock_data(stock)
@@ -795,7 +798,7 @@ with a2:
             with popup:
 
                 st.markdown(f"""
-                <div class='trade-popup'>
+                <div class='trade-popup' style='min-width:650px;'>
 
                 <div class='trade-stock'>
                 {clean_symbol(stock)}
@@ -815,37 +818,23 @@ with a2:
                 st.markdown("")
 
                 order_type = st.selectbox(
-
                     "ORDER TYPE",
-
                     ["MARKET", "LIMIT"],
-
                     key="otype"+stock
-
                 )
 
                 trade_mode = st.radio(
-
                     "TRADE MODE",
-
                     ["INTRADAY", "LONGTERM"],
-
                     horizontal=True,
-
                     key="mode"+stock
-
                 )
 
                 qty = st.number_input(
-
                     "QUANTITY",
-
                     min_value=1,
-
                     value=1,
-
                     key="qty"+stock
-
                 )
 
                 limit_price = price
@@ -853,13 +842,9 @@ with a2:
                 if order_type == "LIMIT":
 
                     limit_price = st.number_input(
-
                         "LIMIT PRICE",
-
                         value=float(price),
-
                         key="limit"+stock
-
                     )
 
                 order_value = round(qty * limit_price, 2)
@@ -901,12 +886,10 @@ with a2:
                         )
 
                         execute_buy(
-
                             stock,
                             qty,
                             trade_price,
                             trade_mode
-
                         )
 
                         st.success("BUY EXECUTED")
@@ -933,11 +916,9 @@ with a2:
                         )
 
                         execute_sell(
-
                             stock,
                             qty,
                             trade_price
-
                         )
 
                         st.success("SELL EXECUTED")
@@ -966,7 +947,6 @@ with a2:
             """, unsafe_allow_html=True)
 
     st.markdown("</div>", unsafe_allow_html=True)
-
 # =========================================================
 # RIGHT PANEL
 # =========================================================
