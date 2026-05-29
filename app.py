@@ -286,19 +286,39 @@ def clean_symbol(x):
 # =========================================================
 # STOCK DATA
 # =========================================================
+# =========================================================
+# STOCK DATA
+# =========================================================
 def get_stock_data(symbol):
 
     try:
 
-        df = yf.download(
-            symbol,
-            period="2d",
-            interval="1m",
-            progress=False
-        )
+        stock = yf.Ticker(symbol)
 
-        if df.empty:
+        data = stock.history(period="5d")
+
+        if data.empty:
             return None
+
+        price = round(float(data["Close"].iloc[-1]), 2)
+
+        prev = round(float(data["Close"].iloc[-2]), 2)
+
+        change = round(price - prev, 2)
+
+        pct = round((change / prev) * 100, 2)
+
+        return {
+            "price": price,
+            "change": change,
+            "pct": pct
+        }
+
+    except Exception as e:
+
+        print(e)
+
+        return None
 
         price = round(float(df["Close"].iloc[-1]), 2)
 
