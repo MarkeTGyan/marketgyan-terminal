@@ -726,9 +726,19 @@ with left:
 
     with a2:
 
-        if st.button("ADD"):
+    if st.button("ADD"):
 
-    if stock_input:
+        if stock_input:
+
+            sym = make_symbol(stock_input)
+
+            if sym not in st.session_state.watchlist:
+
+                st.session_state.watchlist.append(sym)
+
+                save_user_data(st.session_state.username)
+
+                st.rerun()
 
         sym = make_symbol(stock_input)
 
