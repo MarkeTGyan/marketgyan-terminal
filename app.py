@@ -255,7 +255,7 @@ defaults = {
     "logged_in": False,
     "username": "",
     "full_name": "",
-    "watchlist": ["RELIANCE.NS", "TCS.NS", "INFY.NS"],
+    "watchlist": [],
     "portfolio": {},
     "positions": {},
     "orders": [],
@@ -728,18 +728,22 @@ with left:
 
         if st.button("ADD"):
 
-            if stock_input:
+    if stock_input:
 
-                sym = make_symbol(stock_input)
+        sym = make_symbol(stock_input)
 
-                if sym not in st.session_state.watchlist:
+        if sym not in st.session_state.watchlist:
 
-                    st.session_state.watchlist.append(sym)
+            st.session_state.watchlist.append(sym)
 
-                    save_user_data(st.session_state.username)
+            try:
+                save_user_data(st.session_state.username)
+            except:
+                pass
 
-                    st.rerun()
+            st.success(f"{clean_symbol(sym)} ADDED")
 
+            st.rerun()
     st.markdown("---")
 
     for stock in st.session_state.watchlist.copy():
