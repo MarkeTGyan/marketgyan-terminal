@@ -717,14 +717,14 @@ with left:
 
     a1,a2 = st.columns([4,1])
 
-    with a1:
+with a1:
 
-        stock_input = st.text_input(
-            "",
-            placeholder="Add NSE Stock..."
-        )
+    stock_input = st.text_input(
+        "",
+        placeholder="Add NSE Stock..."
+    )
 
-    with a2:
+with a2:
 
     if st.button("ADD"):
 
@@ -739,7 +739,6 @@ with left:
                 save_user_data(st.session_state.username)
 
                 st.rerun()
-
         sym = make_symbol(stock_input)
 
         if sym not in st.session_state.watchlist:
