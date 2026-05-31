@@ -9,6 +9,8 @@ from datetime import datetime
 import json
 import os
 import hashlib
+import pandas as pd
+from io import BytesIO
 
 # =========================================================
 # PAGE CONFIG
@@ -220,6 +222,7 @@ def save_user_data(username):
         "portfolio": st.session_state.portfolio,
         "positions": st.session_state.positions,
         "orders": st.session_state.orders,
+        "history": st.session_state.history,
         "margin": st.session_state.margin,
         "name": st.session_state.full_name
 
@@ -244,6 +247,7 @@ def load_user_data(username):
         st.session_state.portfolio = data.get("portfolio", {})
         st.session_state.positions = data.get("positions", {})
         st.session_state.orders = data.get("orders", [])
+        st.session_state.history = data.get("history", [])
         st.session_state.margin = data.get("margin", 100000)
         st.session_state.full_name = data.get("name", username)
 
@@ -255,10 +259,11 @@ defaults = {
     "logged_in": False,
     "username": "",
     "full_name": "",
-    "watchlist": [],
+    "watchlist": ["RELIANCE.NS", "TCS.NS", "INFY.NS"],
     "portfolio": {},
     "positions": {},
     "orders": [],
+    "history": [],
     "margin": 100000
 
 }
@@ -286,39 +291,19 @@ def clean_symbol(x):
 # =========================================================
 # STOCK DATA
 # =========================================================
-# =========================================================
-# STOCK DATA
-# =========================================================
 def get_stock_data(symbol):
 
     try:
 
-        stock = yf.Ticker(symbol)
+        df = yf.download(
+            symbol,
+            period="2d",
+            interval="1m",
+            progress=False
+        )
 
-        data = stock.history(period="5d")
-
-        if data.empty:
+        if df.empty:
             return None
-
-        price = round(float(data["Close"].iloc[-1]), 2)
-
-        prev = round(float(data["Close"].iloc[-2]), 2)
-
-        change = round(price - prev, 2)
-
-        pct = round((change / prev) * 100, 2)
-
-        return {
-            "price": price,
-            "change": change,
-            "pct": pct
-        }
-
-    except Exception as e:
-
-        print(e)
-
-        return None
 
         price = round(float(df["Close"].iloc[-1]), 2)
 
@@ -422,9 +407,11 @@ def execute_buy(stock, qty, price, mode):
         "qty": qty,
         "price": price,
         "mode": mode,
-        "status": "EXECUTED"
+        "status": "EXECUTED",
+        "date": datetime.now().strftime("%Y-%m-%d")
 
     })
+    st.session_state.history.append(st.session_state.orders[-1].copy())
 
     save_user_data(st.session_state.username)
 
@@ -472,9 +459,11 @@ def execute_sell(stock, qty, price):
         "qty": qty,
         "price": price,
         "mode": "EXIT",
-        "status": "EXECUTED"
+        "status": "EXECUTED",
+        "date": datetime.now().strftime("%Y-%m-%d")
 
     })
+    st.session_state.history.append(st.session_state.orders[-1].copy())
 
     save_user_data(st.session_state.username)
 
@@ -723,7 +712,6 @@ with m5:
 # =========================================================
 left,right = st.columns([1.2,1])
 
-
 # =========================================================
 # WATCHLIST
 # =========================================================
@@ -736,10 +724,7 @@ with left:
     </div>
     """, unsafe_allow_html=True)
 
-    # =====================================================
-    # ADD STOCK
-    # =====================================================
-    a1, a2 = st.columns([4,1])
+    a1,a2 = st.columns([4,1])
 
     with a1:
 
@@ -752,7 +737,7 @@ with left:
 
         if st.button("ADD"):
 
-            if stock_input.strip() != "":
+            if stock_input:
 
                 sym = make_symbol(stock_input)
 
@@ -760,24 +745,12 @@ with left:
 
                     st.session_state.watchlist.append(sym)
 
-                    try:
-                        save_user_data(st.session_state.username)
-                    except:
-                        pass
-
-                    st.success(f"{clean_symbol(sym)} ADDED")
+                    save_user_data(st.session_state.username)
 
                     st.rerun()
 
-                else:
-
-                    st.warning("STOCK ALREADY EXISTS")
-
     st.markdown("---")
 
-    # =====================================================
-    # WATCHLIST ITEMS
-    # =====================================================
     for stock in st.session_state.watchlist.copy():
 
         data = get_stock_data(stock)
@@ -818,7 +791,7 @@ with left:
             with popup:
 
                 st.markdown(f"""
-                <div class='trade-popup' style='min-width:650px;'>
+                <div class='trade-popup'>
 
                 <div class='trade-stock'>
                 {clean_symbol(stock)}
@@ -838,23 +811,37 @@ with left:
                 st.markdown("")
 
                 order_type = st.selectbox(
+
                     "ORDER TYPE",
+
                     ["MARKET", "LIMIT"],
+
                     key="otype"+stock
+
                 )
 
                 trade_mode = st.radio(
+
                     "TRADE MODE",
+
                     ["INTRADAY", "LONGTERM"],
+
                     horizontal=True,
+
                     key="mode"+stock
+
                 )
 
                 qty = st.number_input(
+
                     "QUANTITY",
+
                     min_value=1,
+
                     value=1,
+
                     key="qty"+stock
+
                 )
 
                 limit_price = price
@@ -862,9 +849,13 @@ with left:
                 if order_type == "LIMIT":
 
                     limit_price = st.number_input(
+
                         "LIMIT PRICE",
+
                         value=float(price),
+
                         key="limit"+stock
+
                     )
 
                 order_value = round(qty * limit_price, 2)
@@ -906,10 +897,12 @@ with left:
                         )
 
                         execute_buy(
+
                             stock,
                             qty,
                             trade_price,
                             trade_mode
+
                         )
 
                         st.success("BUY EXECUTED")
@@ -936,9 +929,11 @@ with left:
                         )
 
                         execute_sell(
+
                             stock,
                             qty,
                             trade_price
+
                         )
 
                         st.success("SELL EXECUTED")
@@ -967,16 +962,17 @@ with left:
             """, unsafe_allow_html=True)
 
     st.markdown("</div>", unsafe_allow_html=True)
+
 # =========================================================
 # RIGHT PANEL
 # =========================================================
 with right:
 
-    tab1,tab2,tab3 = st.tabs([
+    tab1,tab2,tab3,tab4 = st.tabs([
 
         "💼 PORTFOLIO",
         "📈 POSITIONS",
-        "📑 ORDERS"
+        "📑 ORDERS","📚 HISTORY"
 
     ])
 
