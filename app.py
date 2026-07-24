@@ -1,5 +1,5 @@
 # =========================================================
-# 🚀 MarkeTGyan PRO Trading Terminal (STABLE VERSION)
+# 🚀 MarkeTGyan PRO Trading Terminal (USER-SPECIFIC FIX)
 # =========================================================
 
 import streamlit as st
@@ -9,128 +9,104 @@ import json
 import os
 import hashlib
 import pandas as pd
-import urllib.request
 import time
 
-# Page Config
-st.set_page_config(page_title="MarkeTGyan PRO", page_icon="📈", layout="wide")
+# [CSS STYLE - APKA PURANA WALA]
+# (Isse change mat kijiye, waisa hi rehne dein)
+st.markdown("""<style>
+/* ... (Aapka CSS yahan rahega) ... */
+</style>""", unsafe_allow_html=True)
 
-# Helpers
+# =========================================================
+# HELPER FUNCTIONS
+# =========================================================
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
-def make_symbol(x):
-    x = x.strip().upper()
-    return x if x.endswith(".NS") or x == "" else x + ".NS"
+def save_user_data(username):
+    # Sirf login hone par hi save karega
+    if username:
+        data = {
+            "watchlist": st.session_state.watchlist,
+            "portfolio": st.session_state.portfolio,
+            "positions": st.session_state.positions,
+            "orders": st.session_state.orders,
+            "history": st.session_state.history,
+            "margin": st.session_state.margin,
+            "scan_results": st.session_state.scan_results
+        }
+        with open(f"userdata/{username}.json", "w") as f:
+            json.dump(data, f)
 
-def clean_symbol(x):
-    return x.replace(".NS", "")
-
-# Folders
-if not os.path.exists("userdata"): os.makedirs("userdata")
+def load_user_data(username):
+    path = f"userdata/{username}.json"
+    if os.path.exists(path):
+        with open(path, "r") as f:
+            data = json.load(f)
+            st.session_state.watchlist = data.get("watchlist", ["RELIANCE.NS"])
+            st.session_state.portfolio = data.get("portfolio", {})
+            st.session_state.positions = data.get("positions", {})
+            st.session_state.orders = data.get("orders", [])
+            st.session_state.history = data.get("history", [])
+            st.session_state.margin = data.get("margin", 100000)
+            st.session_state.scan_results = data.get("scan_results", None)
 
 # =========================================================
-# CSS
+# INITIALIZE STATE (GLOBAL)
 # =========================================================
-st.markdown("""
-<style>
-.main-title{text-align:center; font-size:40px; font-weight:900; background:linear-gradient(90deg,#00ffd5,#00bfff); -webkit-background-clip:text; -webkit-text-fill-color:transparent;}
-.metric-box{background:#0d1526; border-radius:15px; padding:15px; border:1px solid rgba(255,255,255,0.1);}
-.green{color:#00ff88; font-weight:bold;} .red{color:#ff4d6d; font-weight:bold;}
-</style>
-""", unsafe_allow_html=True)
-
-# =========================================================
-# STATE INITIALIZATION
-# =========================================================
-if "initialized" not in st.session_state:
+if "logged_in" not in st.session_state:
     st.session_state.update({
         "logged_in": False, "username": "", "full_name": "",
-        "watchlist": ["RELIANCE.NS", "TCS.NS", "INFY.NS"],
-        "portfolio": {}, "positions": {}, "orders": [], "history": [],
-        "margin": 100000, "scan_results": None, "initialized": True
+        "watchlist": ["RELIANCE.NS"], "portfolio": {}, 
+        "positions": {}, "orders": [], "history": [], 
+        "margin": 100000, "scan_results": None
     })
 
 # =========================================================
-# DATA ENGINE
+# SIDEBAR LOGIN SYSTEM
 # =========================================================
-def get_stock_data(symbol):
-    try:
-        ticker = yf.Ticker(symbol)
-        df = ticker.history(period="5d")
-        if len(df) < 2: return {"price": 0.0, "change": 0.0, "pct": 0.0}
-        curr = round(float(df["Close"].iloc[-1]), 2)
-        prev = round(float(df["Close"].iloc[-2]), 2)
-        return {"price": curr, "change": round(curr - prev, 2), "pct": round(((curr-prev)/prev)*100, 2)}
-    except: return {"price": 0.0, "change": 0.0, "pct": 0.0}
-
-def save_data():
-    if st.session_state.logged_in:
-        data = {k: st.session_state[k] for k in ["watchlist", "portfolio", "positions", "orders", "history", "margin", "scan_results"]}
-        with open(f"userdata/{st.session_state.username}.json", "w") as f: json.dump(data, f)
-
-# =========================================================
-# LOGIN SYSTEM
-# =========================================================
-if not st.session_state.logged_in:
-    st.sidebar.title("🔐 LOGIN")
-    mode = st.sidebar.radio("MODE", ["LOGIN", "SIGNUP"])
-    user = st.sidebar.text_input("USERNAME").lower()
-    pwd = st.sidebar.text_input("PASSWORD", type="password")
-    name = st.sidebar.text_input("FULL NAME") if mode == "SIGNUP" else ""
+with st.sidebar:
+    st.title("🔐 LOGIN")
+    auth_mode = st.radio("SELECT", ["LOGIN", "SIGNUP"])
     
-    if st.sidebar.button("SUBMIT"):
-        users = json.load(open("users.json")) if os.path.exists("users.json") else {}
-        if mode == "SIGNUP":
-            users[user] = {"password": hash_password(pwd), "name": name}
-            json.dump(users, open("users.json", "w"))
-            st.sidebar.success("Account Created!")
-        elif user in users and users[user]["password"] == hash_password(pwd):
-            st.session_state.update({"logged_in": True, "username": user, "full_name": users[user]["name"]})
-            if os.path.exists(f"userdata/{user}.json"):
-                st.session_state.update(json.load(open(f"userdata/{user}.json")))
-            st.rerun()
+    # Input fields
+    if auth_mode == "SIGNUP": full_name = st.text_input("FULL NAME")
+    username = st.text_input("EMAIL / USERNAME").strip().lower()
+    password = st.text_input("PASSWORD", type="password")
+
+    if st.button("PROCEED"):
+        users = {}
+        if os.path.exists("users.json"):
+            with open("users.json", "r") as f: users = json.load(f)
+            
+        if auth_mode == "SIGNUP":
+            users[username] = {"password": hash_password(password), "name": full_name.title()}
+            with open("users.json", "w") as f: json.dump(users, f)
+            st.success("ACCOUNT CREATED! NOW LOGIN.")
+        else:
+            if username in users and users[username]["password"] == hash_password(password):
+                st.session_state.logged_in = True
+                st.session_state.username = username
+                st.session_state.full_name = users[username]["name"]
+                # YAHAN SE DATA LOAD HOGA
+                load_user_data(username)
+                st.rerun()
+            else:
+                st.error("INVALID CREDENTIALS")
+
+if not st.session_state.logged_in:
+    st.warning("PLEASE LOGIN FROM SIDEBAR")
     st.stop()
 
 # =========================================================
-# MAIN DASHBOARD
+# LOGOUT BUTTON
 # =========================================================
-st.markdown("<div class='main-title'>🚀 MarkeTGyan PRO</div>", unsafe_allow_html=True)
+if st.sidebar.button("LOGOUT"):
+    save_user_data(st.session_state.username) # Save before logout
+    for key in list(st.session_state.keys()): del st.session_state[key]
+    st.rerun()
 
-# Top Bar
-c1, c2 = st.columns([5, 1])
-c1.write(f"Welcome, **{st.session_state.full_name}**")
-if c2.button("Logout"): st.session_state.logged_in = False; st.rerun()
-
-# Metrics
-cols = st.columns(4)
-cols[0].markdown(f"<div class='metric-box'>Margin: ₹{st.session_state.margin:,.2f}</div>", unsafe_allow_html=True)
-cols[1].markdown(f"<div class='metric-box'>Positions: {len(st.session_state.positions)}</div>", unsafe_allow_html=True)
-
-# Watchlist Logic
-st.subheader("📊 Watchlist")
-new_stock = st.text_input("Add Symbol (e.g. SBIN):")
-if st.button("Add"):
-    sym = make_symbol(new_stock)
-    if sym not in st.session_state.watchlist:
-        st.session_state.watchlist.append(sym)
-        save_data()
-        st.rerun()
-
-# Display Stocks
-for stock in st.session_state.watchlist:
-    data = get_stock_data(stock)
-    col1, col2, col3 = st.columns([2, 1, 1])
-    col1.write(f"**{clean_symbol(stock)}**")
-    col2.write(f"₹{data['price']}")
-    col3.markdown(f"<span class='{'green' if data['change']>=0 else 'red'}'>{data['pct']}%</span>", unsafe_allow_html=True)
-
-# Scanner Tab
-if st.button("⚡ Run Scanner"):
-    with st.spinner("Scanning NSE..."):
-        # YFinance batch download
-        data = yf.download(st.session_state.watchlist, period="1y")
-        st.success("Scan Complete!")
-        # (Aapka custom logic yahan add karein)
-
-st.divider()
+# =========================================================
+# YAHAN SE AAPKA BAKI KA POORA CODE VAISE HI CHALEGA
+# =========================================================
+# ... (Baaki poora logic yahan paste karein) ...
